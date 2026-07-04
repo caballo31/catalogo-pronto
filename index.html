@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PRONTO! Congelados y más</title>
+    <meta
+      name="description"
+      content="PRONTO! Congelados y más — Catálogo online para elegir productos, armar tu pedido y enviarlo por WhatsApp. Pasá a retirar a tu comodidad."
+    />
+    <meta property="og:title" content="PRONTO! Congelados y más" />
+    <meta property="og:description" content="Catálogo online para elegir productos, armar tu pedido y enviarlo por WhatsApp. Pasá a retirar a tu comodidad." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="PRONTO! Congelados y más" />
+    <meta name="twitter:description" content="Catálogo online para elegir productos, armar tu pedido y enviarlo por WhatsApp. Pasá a retirar a tu comodidad." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="brand">
+        <div>
+          <p class="eyebrow">Catálogo online</p>
+          <h1>PRONTO! Congelados y más</h1>
+        </div>
+      </div>
+      <p class="hero-copy">
+        Elegí tus productos, armá tu pedido y enviálo directo por WhatsApp, y pasá a retirar a tu comodidad.
+      </p>
+    </header>
+
+    <main class="container">
+      <section class="controls" aria-label="Buscador y filtros">
+        <input
+          id="searchInput"
+          type="search"
+          placeholder="Buscar producto..."
+          autocomplete="off"
+        />
+        <div id="categoryTabs" class="category-tabs" role="tablist"></div>
+        <div id="subcategoryTabs" class="subcategory-tabs" role="tablist"></div>
+      </section>
+
+      <section class="catalog-section">
+        <div class="catalog-header">
+          <h2>Catálogo</h2>
+          <p id="resultsCount">Mostrando productos</p>
+        </div>
+        <div id="catalogGrid" class="catalog-grid"></div>
+      </section>
+    </main>
+
+    <button id="cartToggle" class="cart-toggle" type="button" aria-label="Abrir carrito">
+      🛒
+      <span id="cartCount" class="cart-count">0</span>
+    </button>
+
+    <div id="cartOverlay" class="cart-overlay" hidden></div>
+
+    <aside id="cartPanel" class="cart-panel" aria-hidden="true">
+      <div class="cart-panel-head">
+        <h3>Tu pedido</h3>
+        <button id="closeCart" class="close-btn" type="button" aria-label="Cerrar carrito">✕</button>
+      </div>
+      <div id="cartItems" class="cart-items"></div>
+      <div class="cart-footer">
+        <div class="cart-total-row">
+          <span>Total</span>
+          <strong id="cartTotal">$0</strong>
+        </div>
+        <button id="checkoutBtn" class="checkout-btn" type="button">
+          Enviar pedido por WhatsApp
+        </button>
+      </div>
+    </aside>
+
+    <script src="products-data.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
