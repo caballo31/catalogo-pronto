@@ -179,10 +179,49 @@ p {
   line-height: 1.4;
 }
 
+.product-price-block {
+  margin-bottom: 0.4rem;
+}
+
+.offer-pill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  margin-bottom: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--brand-red);
+  color: white;
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .product-price {
   font-weight: 700;
   color: var(--brand-red);
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.1rem;
+}
+
+.product-old-price {
+  color: #9a8e84;
+  text-decoration: line-through;
+  font-size: 0.9rem;
+  margin-bottom: 0.15rem;
+}
+
+.product-promo-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: #fff1d6;
+  color: var(--brand-red);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .product-unit {

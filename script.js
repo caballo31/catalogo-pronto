@@ -9,14 +9,23 @@ const BRAND = {
   text: '#2f1f14',
 };
 
-// Array de productos cargado desde el archivo generado del Excel o desde el CSV.
+// Array de productos cargado desde products-data.js (generado por generate_products.py
+// a partir de catalogo_pronto_web_1.csv). Cada producto ya trae su categoría,
+// subcategoría (dentro de "category" como "CATEGORIA/SUBCATEGORIA") y su
+// descuento propio en discountPercent (0 si no tiene oferta).
+
+function normalizeProduct(product) {
+  return {
+    ...product,
+    category: product.category || 'General',
+    unit: product.unit === 'kg' ? 'kg' : 'unidad',
+    description: product.description || 'Producto del catálogo',
+    discountPercent: Number(product.discountPercent) || 0,
+  };
+}
+
 let products = Array.isArray(window.PRODUCTS_DATA) && window.PRODUCTS_DATA.length
-  ? window.PRODUCTS_DATA.map((product) => ({
-      ...product,
-      category: product.category || 'General',
-      unit: product.unit === 'kg' ? 'kg' : 'unidad',
-      description: product.description || 'Producto del catálogo',
-    }))
+  ? window.PRODUCTS_DATA.map(normalizeProduct)
   : [];
 
 const CART_STORAGE_KEY = 'almacen-rotiseria-cart';
@@ -48,6 +57,10 @@ function normalizeText(value = '') {
 }
 
 function shouldIncludeProduct(product) {
+  if (product.isAvailable === false) {
+    return false;
+  }
+
   const normalizedCategory = normalizeText(product.category);
   return !normalizedCategory.includes('insumos de produccion')
     && !normalizedCategory.includes('descartables')
@@ -55,8 +68,8 @@ function shouldIncludeProduct(product) {
 }
 
 function getCategoryParts(category = '') {
-  const cleanedCategory = category.trim();
-  const parts = cleanedCategory.split('/').map((part) => part.trim());
+  const cleanedCategory = String(category || '').trim();
+  const parts = cleanedCategory.split('/').map((part) => part.trim()).filter(Boolean);
   const [mainCategory, ...subCategoryParts] = parts;
   const subCategory = subCategoryParts.join(' / ').trim();
 
@@ -70,108 +83,36 @@ function getUnitLabel(product) {
   return product.unit === 'kg' ? 'por kg' : 'por unidad';
 }
 
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let value = '';
-  let inQuotes = false;
+function applyPromotionsToProducts(productList) {
+  return productList.map((product) => {
+    const discountPercent = Number(product.discountPercent) || 0;
+    const originalPrice = Number(product.price) || 0;
+    const discountedPrice = discountPercent > 0
+      ? Math.max(0, Math.round(originalPrice * (1 - discountPercent / 100)))
+      : originalPrice;
 
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-
-    if (char === '"') {
-      if (inQuotes && text[index + 1] === '"') {
-        value += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      row.push(value);
-      value = '';
-      continue;
-    }
-
-    if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (char === '\r' && text[index + 1] === '\n') {
-        index += 1;
-      }
-      row.push(value);
-      if (row.some((cell) => cell !== '')) {
-        rows.push(row);
-      }
-      row = [];
-      value = '';
-      continue;
-    }
-
-    value += char;
-  }
-
-  if (value !== '' || row.length) {
-    row.push(value);
-    if (row.some((cell) => cell !== '')) {
-      rows.push(row);
-    }
-  }
-
-  return rows;
+    return {
+      ...product,
+      originalPrice,
+      price: discountedPrice,
+      hasPromo: discountPercent > 0,
+      promoLabel: discountPercent > 0 ? `${discountPercent}% OFF` : '',
+    };
+  });
 }
 
-function mapCsvProduct(row, headers) {
-  const values = Object.fromEntries(headers.map((header, index) => [header, row[index] ?? '']));
-  const name = values.Nombre?.trim();
-  const price = Number(values['Precio de venta'] || 0);
-  const category = values['Categoría del producto']?.trim() || 'General';
-  const unitValue = values['Unidad de medida']?.trim().toLowerCase();
+function loadProducts() {
+  const sourceProducts = Array.isArray(window.PRODUCTS_DATA) && window.PRODUCTS_DATA.length
+    ? window.PRODUCTS_DATA.map(normalizeProduct)
+    : [];
 
-  if (!name) {
-    return null;
-  }
-
-  return {
-    name,
-    price,
-    category,
-    unit: unitValue === 'kg' ? 'kg' : 'unidad',
-    description: 'Producto del catálogo',
-  };
-}
-
-async function loadProducts() {
-  try {
-    const response = await fetch('PRODUCTOS DATA BASE/Producto (product.template).csv');
-    if (!response.ok) {
-      throw new Error(`No se pudo cargar el CSV (${response.status})`);
-    }
-
-    const csvText = await response.text();
-    const rows = parseCsv(csvText);
-    if (!rows.length) {
-      throw new Error('El archivo CSV está vacío.');
-    }
-
-    const headers = rows[0].map((header) => header.trim());
-    const parsedProducts = rows
-      .slice(1)
-      .filter((row) => row.some((cell) => cell.trim()))
-      .map((row) => mapCsvProduct(row, headers))
-      .filter(Boolean)
-      .filter(shouldIncludeProduct);
-
-    products = parsedProducts;
-  } catch (error) {
-    console.error('No se pudo cargar la data del CSV. Se usará la data existente.', error);
-    products = products.filter(shouldIncludeProduct);
-  }
+  products = applyPromotionsToProducts(sourceProducts.filter(shouldIncludeProduct));
 
   renderCategoryTabs();
   renderCatalog();
   renderCart();
 }
+
 
 function saveCart() {
   localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
@@ -214,7 +155,7 @@ function renderSubcategoryTabs() {
     products
       .filter((product) => getCategoryParts(product.category).main === activeCategory)
       .map((product) => getCategoryParts(product.category).sub)
-      .filter((subCategory) => subCategory && subCategory !== 'General')
+      .filter((subCategory) => subCategory && subCategory !== 'General' && subCategory !== activeCategory)
   )];
 
   subcategoryTabs.innerHTML = subcategories
@@ -260,7 +201,16 @@ function renderCatalog() {
           <div class="product-info">
             <h3 class="product-name">${product.name}</h3>
             <p class="product-description">${product.description}</p>
-            <p class="product-price">${formatPrice(product.price)}</p>
+            <div class="product-price-block">
+              ${product.hasPromo ? `
+                <span class="offer-pill">OFERTA</span>
+                <p class="product-old-price">${formatPrice(product.originalPrice)}</p>
+                <p class="product-price">${formatPrice(product.price)}</p>
+              ` : `
+                <p class="product-price">${formatPrice(product.price)}</p>
+              `}
+            </div>
+            ${product.hasPromo ? `<p class="product-promo-badge">${product.promoLabel}</p>` : ''}
             <p class="product-unit">${getUnitLabel(product)}</p>
           </div>
           <button class="add-btn" type="button" data-add-product="${product.name}">Agregar</button>
