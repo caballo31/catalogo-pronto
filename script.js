@@ -91,9 +91,18 @@ function buildCategory(categoria, subcategoria) {
   return sub ? `${cat}/${sub}` : (cat || 'General');
 }
 
+// Umbral para avisar que queda poco stock (unidades o kg, según el producto).
+const LOW_STOCK_THRESHOLD = 2;
+
+function parseQuantity(value) {
+  const num = parseFloat(String(value || '0').replace(',', '.'));
+  return Number.isFinite(num) ? num : 0;
+}
+
 function mapCsvRowToProduct(row) {
   const name = (row.PRODUCTO || '').trim();
   const nameUpper = name.toUpperCase();
+  const stock = parseQuantity(row.CANTIDAD);
   return {
     name,
     price: parsePrice(row.PRECIO),
@@ -101,6 +110,9 @@ function mapCsvRowToProduct(row) {
     unit: KEYWORDS_KG.some((keyword) => nameUpper.includes(keyword)) ? 'kg' : 'unidad',
     description: 'Producto del catálogo',
     discountPercent: parsePrice(row.DESCUENTO),
+    stock,
+    isOutOfStock: stock <= 0,
+    isLowStock: stock > 0 && stock <= LOW_STOCK_THRESHOLD,
   };
 }
 
@@ -303,7 +315,7 @@ function renderCatalog() {
   catalogGrid.innerHTML = filteredProducts
     .map(
       (product) => `
-        <article class="product-card">
+        <article class="product-card${product.isOutOfStock ? ' out-of-stock' : ''}">
           <div class="product-info">
             <h3 class="product-name">${product.name}</h3>
             <p class="product-description">${product.description}</p>
@@ -317,9 +329,13 @@ function renderCatalog() {
               `}
             </div>
             ${product.hasPromo ? `<p class="product-promo-badge">${product.promoLabel}</p>` : ''}
+            ${product.isOutOfStock ? '<p class="stock-badge stock-badge--out">Fuera de stock</p>' : ''}
+            ${product.isLowStock ? '<p class="stock-badge stock-badge--low">¡Quedan pocas unidades!</p>' : ''}
             <p class="product-unit">${getUnitLabel(product)}</p>
           </div>
-          <button class="add-btn" type="button" data-add-product="${product.name}">Agregar</button>
+          ${product.isOutOfStock
+            ? '<button class="add-btn" type="button" disabled>Sin stock</button>'
+            : `<button class="add-btn" type="button" data-add-product="${product.name}">Agregar</button>`}
         </article>
       `
     )
@@ -334,9 +350,16 @@ function renderCatalog() {
 
 function addToCart(productName) {
   const product = products.find((item) => item.name === productName);
-  if (!product) return;
+  if (!product || product.isOutOfStock) return;
 
   const existing = cart.find((item) => item.name === productName);
+  const currentQty = existing ? existing.quantity : 0;
+
+  if (product.stock && currentQty + 1 > product.stock) {
+    alert(`Solo quedan ${product.stock} de "${product.name}" en stock.`);
+    return;
+  }
+
   if (existing) {
     existing.quantity += 1;
   } else {
@@ -350,6 +373,14 @@ function addToCart(productName) {
 function updateQuantity(productName, delta) {
   const item = cart.find((entry) => entry.name === productName);
   if (!item) return;
+
+  if (delta > 0) {
+    const product = products.find((p) => p.name === productName);
+    if (product && product.stock && item.quantity + delta > product.stock) {
+      alert(`Solo quedan ${product.stock} de "${productName}" en stock.`);
+      return;
+    }
+  }
 
   item.quantity += delta;
   if (item.quantity <= 0) {
