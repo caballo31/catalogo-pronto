@@ -9,10 +9,100 @@ const BRAND = {
   text: '#2f1f14',
 };
 
-// Array de productos cargado desde products-data.js (generado por generate_products.py
-// a partir de catalogo_pronto_web_1.csv). Cada producto ya trae su categoría,
-// subcategoría (dentro de "category" como "CATEGORIA/SUBCATEGORIA") y su
-// descuento propio en discountPercent (0 si no tiene oferta).
+// Productos: se leen directamente del CSV en cada visita a la página.
+// Para actualizar el catálogo, alcanza con reemplazar CATALOG_CSV_PATH
+// en el repo (mismo nombre de archivo) y subirlo a GitHub. No hace falta
+// correr ningún script ni generar ningún archivo intermedio.
+const CATALOG_CSV_PATH = 'catalogo_pronto_web_1.csv';
+
+// Productos que se venden por peso (kg) en vez de por unidad.
+// Si agregás un producto nuevo que se vende por kg, sumalo acá.
+const KEYWORDS_KG = [
+  'GRANEL',
+  'ALITA',
+  'BONDIOLA',
+  'MEDALLON',
+  'MILANESA',
+  'MUSLO',
+  'PECHUGA',
+  'TROZADO POLLO',
+];
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (inQuotes) {
+      if (char === '"' && next === '"') {
+        field += '"';
+        i += 1;
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        field += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ',') {
+      row.push(field);
+      field = '';
+    } else if (char === '\r') {
+      // ignorar, lo maneja el \n siguiente
+    } else if (char === '\n') {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += char;
+    }
+  }
+  if (field.length || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  const header = (rows.shift() || []).map((h) => h.trim());
+  return rows
+    .filter((r) => r.some((cell) => cell.trim() !== ''))
+    .map((r) => {
+      const entry = {};
+      header.forEach((key, index) => {
+        entry[key] = (r[index] || '').trim();
+      });
+      return entry;
+    });
+}
+
+function parsePrice(value) {
+  const num = parseFloat(String(value || '0').replace(',', '.'));
+  return Number.isFinite(num) ? Math.round(num) : 0;
+}
+
+function buildCategory(categoria, subcategoria) {
+  const cat = (categoria || '').trim();
+  const sub = (subcategoria || '').trim();
+  return sub ? `${cat}/${sub}` : (cat || 'General');
+}
+
+function mapCsvRowToProduct(row) {
+  const name = (row.PRODUCTO || '').trim();
+  const nameUpper = name.toUpperCase();
+  return {
+    name,
+    price: parsePrice(row.PRECIO),
+    category: buildCategory(row.CATEGORIA, row.SUBCATEGORIA),
+    unit: KEYWORDS_KG.some((keyword) => nameUpper.includes(keyword)) ? 'kg' : 'unidad',
+    description: 'Producto del catálogo',
+    discountPercent: parsePrice(row.DESCUENTO),
+  };
+}
 
 function normalizeProduct(product) {
   return {
@@ -24,9 +114,7 @@ function normalizeProduct(product) {
   };
 }
 
-let products = Array.isArray(window.PRODUCTS_DATA) && window.PRODUCTS_DATA.length
-  ? window.PRODUCTS_DATA.map(normalizeProduct)
-  : [];
+let products = [];
 
 const CART_STORAGE_KEY = 'almacen-rotiseria-cart';
 let activeCategory = 'Todos';
@@ -101,10 +189,28 @@ function applyPromotionsToProducts(productList) {
   });
 }
 
-function loadProducts() {
-  const sourceProducts = Array.isArray(window.PRODUCTS_DATA) && window.PRODUCTS_DATA.length
-    ? window.PRODUCTS_DATA.map(normalizeProduct)
-    : [];
+async function loadProducts() {
+  if (resultsCount) {
+    resultsCount.textContent = 'Cargando productos...';
+  }
+
+  let sourceProducts = [];
+  try {
+    // cache: 'no-store' para que siempre traiga la última versión del CSV
+    // y no una copia vieja guardada por el navegador.
+    const response = await fetch(`${CATALOG_CSV_PATH}?v=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`No se pudo cargar ${CATALOG_CSV_PATH} (status ${response.status})`);
+    }
+    const text = await response.text();
+    sourceProducts = parseCsv(text).map(mapCsvRowToProduct).map(normalizeProduct);
+  } catch (error) {
+    console.error('Error cargando el catálogo:', error);
+    if (resultsCount) {
+      resultsCount.textContent = 'No se pudo cargar el catálogo. Probá recargar la página.';
+    }
+    return;
+  }
 
   products = applyPromotionsToProducts(sourceProducts.filter(shouldIncludeProduct));
 
