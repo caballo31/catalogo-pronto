@@ -9,24 +9,27 @@ const BRAND = {
   text: '#2f1f14',
 };
 
-// Productos: se leen directamente del CSV en cada visita a la página.
-// Para actualizar el catálogo, alcanza con reemplazar CATALOG_CSV_PATH
-// en el repo (mismo nombre de archivo) y subirlo a GitHub. No hace falta
-// correr ningún script ni generar ningún archivo intermedio.
-const CATALOG_CSV_PATH = 'catalogo_pronto_web_1.csv';
+// El catálogo se arma leyendo DIRECTO el CSV que exportás de Odoo
+// (Inventario > Productos > exportar), sin pasar por ningún script
+// intermedio. El único paso manual es: exportar de Odoo y reemplazar
+// este archivo en el repo con ese mismo nombre.
+const CATALOG_CSV_PATH = 'productos.csv';
 
-// Productos que se venden por peso (kg) en vez de por unidad.
-// Si agregás un producto nuevo que se vende por kg, sumalo acá.
-const KEYWORDS_KG = [
-  'GRANEL',
-  'ALITA',
-  'BONDIOLA',
-  'MEDALLON',
-  'MILANESA',
-  'MUSLO',
-  'PECHUGA',
-  'TROZADO POLLO',
-];
+// Las promos (descuentos por producto, categoría o combos "llevando X, Y% off")
+// se cargan aparte, desde promos.json. Ese archivo lo genera el gestor de
+// promos (promos-admin.html) — no se toca a mano.
+const PROMOS_JSON_PATH = 'promos.json';
+
+// Categorías de Odoo que nunca deben aparecer en el catálogo web.
+// "all"/"todos" cubre productos que quedaron sin categoría asignada.
+const EXCLUDED_CATEGORIES = ['insumos de produccion', 'descartables', 'all', 'todos'];
+
+// Umbral para avisar que queda poco stock (unidades o kg, según el producto).
+const LOW_STOCK_THRESHOLD = 2;
+
+// ---------------------------------------------------------------------------
+// Parsing genérico de CSV (soporta comillas, comas dentro de campos, \r\n)
+// ---------------------------------------------------------------------------
 
 function parseCsv(text) {
   const rows = [];
@@ -85,48 +88,131 @@ function parsePrice(value) {
   return Number.isFinite(num) ? Math.round(num) : 0;
 }
 
-function buildCategory(categoria, subcategoria) {
-  const cat = (categoria || '').trim();
-  const sub = (subcategoria || '').trim();
-  return sub ? `${cat}/${sub}` : (cat || 'General');
-}
-
-// Umbral para avisar que queda poco stock (unidades o kg, según el producto).
-const LOW_STOCK_THRESHOLD = 2;
-
 function parseQuantity(value) {
   const num = parseFloat(String(value || '0').replace(',', '.'));
   return Number.isFinite(num) ? num : 0;
 }
 
-function mapCsvRowToProduct(row) {
-  const name = (row.PRODUCTO || '').trim();
-  const nameUpper = name.toUpperCase();
-  const stock = parseQuantity(row.CANTIDAD);
+function normalizeText(value = '') {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function getCategoryParts(category = '') {
+  const parts = String(category || '').split('/').map((p) => p.trim()).filter(Boolean);
+  return { main: parts[0] || '', sub: parts.slice(1).join(' / ') || '' };
+}
+
+// ---------------------------------------------------------------------------
+// Mapeo del export crudo de Odoo (Producto/product.template) a producto web
+// ---------------------------------------------------------------------------
+
+function mapOdooRowToProduct(row) {
+  const name = (row['Nombre'] || '').trim();
+  const parentCat = (row['Categoría del producto/Categoría principal'] || '').trim();
+  const leafCat = (row['Categoría del producto/Nombre'] || '').trim();
+  const category = parentCat ? `${parentCat}/${leafCat}` : leafCat;
+
+  const unidad = (row['Unidad de medida'] || '').trim().toLowerCase();
+  const unit = unidad === 'kg' ? 'kg' : 'unidad';
+
+  const trackStock = (row['Rastrear inventario'] || '').trim().toLowerCase() === 'true';
+  const stock = parseQuantity(row['Cantidad a la mano']);
+
   return {
     name,
-    price: parsePrice(row.PRECIO),
-    category: buildCategory(row.CATEGORIA, row.SUBCATEGORIA),
-    unit: KEYWORDS_KG.some((keyword) => nameUpper.includes(keyword)) ? 'kg' : 'unidad',
+    price: parsePrice(row['Precio de venta']),
+    category: category || '',
+    unit,
     description: 'Producto del catálogo',
-    discountPercent: parsePrice(row.DESCUENTO),
     stock,
-    isOutOfStock: stock <= 0,
-    isLowStock: stock > 0 && stock <= LOW_STOCK_THRESHOLD,
+    trackStock,
+    isOutOfStock: trackStock && stock <= 0,
+    isLowStock: trackStock && stock > 0 && stock <= LOW_STOCK_THRESHOLD,
   };
 }
 
-function normalizeProduct(product) {
-  return {
-    ...product,
-    category: product.category || 'General',
-    unit: product.unit === 'kg' ? 'kg' : 'unidad',
-    description: product.description || 'Producto del catálogo',
-    discountPercent: Number(product.discountPercent) || 0,
-  };
+function shouldIncludeProduct(product) {
+  if (!product.name) return false;
+  const mainCategory = normalizeText(getCategoryParts(product.category).main);
+  if (!mainCategory) return false; // sin categoría asignada en Odoo
+  return !EXCLUDED_CATEGORIES.includes(mainCategory);
+}
+
+// ---------------------------------------------------------------------------
+// Promos (promos.json): descuentos estáticos (producto/categoría) que se
+// muestran en el catálogo, y combos cruzados que se calculan en el carrito.
+// ---------------------------------------------------------------------------
+
+function computeStaticDiscountForProduct(product, promoList) {
+  let best = 0;
+  promoList
+    .filter((promo) => promo.activa)
+    .forEach((promo) => {
+      if (promo.tipo === 'producto' && promo.productos.includes(product.name)) {
+        best = Math.max(best, promo.descuentoPercent);
+      }
+      if (promo.tipo === 'categoria') {
+        const parts = getCategoryParts(product.category);
+        const matchesMain = parts.main === promo.categoria;
+        const matchesSub = !promo.subcategoria || parts.sub === promo.subcategoria;
+        if (matchesMain && matchesSub) {
+          best = Math.max(best, promo.descuentoPercent);
+        }
+      }
+    });
+  return best;
+}
+
+function applyStaticPromos(productList, promoList) {
+  return productList.map((product) => {
+    const discountPercent = computeStaticDiscountForProduct(product, promoList);
+    const originalPrice = product.price;
+    const discountedPrice = discountPercent > 0
+      ? Math.max(0, Math.round(originalPrice * (1 - discountPercent / 100)))
+      : originalPrice;
+
+    return {
+      ...product,
+      originalPrice,
+      price: discountedPrice,
+      hasPromo: discountPercent > 0,
+      promoLabel: discountPercent > 0 ? `${discountPercent}% OFF` : '',
+    };
+  });
+}
+
+// Para promos "cruzadas": qué % de descuento le toca a cada ítem del
+// carrito, según si se cumplió la condición de cantidad mínima.
+function computeCruzadaDiscounts(cartList, promoList) {
+  const discountMap = new Map();
+  const setMax = (name, value) => discountMap.set(name, Math.max(discountMap.get(name) || 0, value));
+
+  promoList
+    .filter((promo) => promo.activa && promo.tipo === 'cruzada')
+    .forEach((promo) => {
+      const triggerItem = cartList.find((item) => item.name === promo.trigger.producto);
+      if (!triggerItem || triggerItem.quantity < promo.trigger.cantidadMinima) return;
+
+      if (promo.beneficio.tipo === 'mismoProducto') {
+        setMax(triggerItem.name, promo.descuentoPercent);
+      } else if (promo.beneficio.tipo === 'otroProducto') {
+        const targetItem = cartList.find((item) => item.name === promo.beneficio.producto);
+        if (targetItem) setMax(targetItem.name, promo.descuentoPercent);
+      } else if (promo.beneficio.tipo === 'categoria') {
+        cartList.forEach((item) => {
+          const parts = getCategoryParts(item.category);
+          if (parts.main === promo.beneficio.categoria) {
+            setMax(item.name, promo.descuentoPercent);
+          }
+        });
+      }
+    });
+
+  return discountMap;
 }
 
 let products = [];
+let promos = [];
 
 const CART_STORAGE_KEY = 'almacen-rotiseria-cart';
 let activeCategory = 'Todos';
@@ -152,22 +238,7 @@ function formatPrice(value) {
   return `$${Number(value).toLocaleString('es-AR')}`;
 }
 
-function normalizeText(value = '') {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-}
-
-function shouldIncludeProduct(product) {
-  if (product.isAvailable === false) {
-    return false;
-  }
-
-  const normalizedCategory = normalizeText(product.category);
-  return !normalizedCategory.includes('insumos de produccion')
-    && !normalizedCategory.includes('descartables')
-    && normalizedCategory !== 'all';
-}
-
-function getCategoryParts(category = '') {
+function getCategoryDisplayParts(category = '') {
   const cleanedCategory = String(category || '').trim();
   const parts = cleanedCategory.split('/').map((part) => part.trim()).filter(Boolean);
   const [mainCategory, ...subCategoryParts] = parts;
@@ -183,22 +254,15 @@ function getUnitLabel(product) {
   return product.unit === 'kg' ? 'por kg' : 'por unidad';
 }
 
-function applyPromotionsToProducts(productList) {
-  return productList.map((product) => {
-    const discountPercent = Number(product.discountPercent) || 0;
-    const originalPrice = Number(product.price) || 0;
-    const discountedPrice = discountPercent > 0
-      ? Math.max(0, Math.round(originalPrice * (1 - discountPercent / 100)))
-      : originalPrice;
-
-    return {
-      ...product,
-      originalPrice,
-      price: discountedPrice,
-      hasPromo: discountPercent > 0,
-      promoLabel: discountPercent > 0 ? `${discountPercent}% OFF` : '',
-    };
-  });
+async function fetchJsonSafe(path) {
+  try {
+    const response = await fetch(`${path}?v=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.error(`No se pudo cargar ${path}:`, error);
+    return null;
+  }
 }
 
 async function loadProducts() {
@@ -215,7 +279,7 @@ async function loadProducts() {
       throw new Error(`No se pudo cargar ${CATALOG_CSV_PATH} (status ${response.status})`);
     }
     const text = await response.text();
-    sourceProducts = parseCsv(text).map(mapCsvRowToProduct).map(normalizeProduct);
+    sourceProducts = parseCsv(text).map(mapOdooRowToProduct).filter(shouldIncludeProduct);
   } catch (error) {
     console.error('Error cargando el catálogo:', error);
     if (resultsCount) {
@@ -224,13 +288,13 @@ async function loadProducts() {
     return;
   }
 
-  products = applyPromotionsToProducts(sourceProducts.filter(shouldIncludeProduct));
+  promos = (await fetchJsonSafe(PROMOS_JSON_PATH)) || [];
+  products = applyStaticPromos(sourceProducts, promos);
 
   renderCategoryTabs();
   renderCatalog();
   renderCart();
 }
-
 
 function saveCart() {
   localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
@@ -242,7 +306,7 @@ function updateCartCount() {
 }
 
 function renderCategoryTabs() {
-  const categories = ['Todos', ...new Set(products.map((product) => getCategoryParts(product.category).main))];
+  const categories = ['Todos', ...new Set(products.map((product) => getCategoryDisplayParts(product.category).main))];
   categoryTabs.innerHTML = categories
     .map((category) => {
       const isActive = category === activeCategory;
@@ -271,8 +335,8 @@ function renderSubcategoryTabs() {
 
   const subcategories = ['Todos', ...new Set(
     products
-      .filter((product) => getCategoryParts(product.category).main === activeCategory)
-      .map((product) => getCategoryParts(product.category).sub)
+      .filter((product) => getCategoryDisplayParts(product.category).main === activeCategory)
+      .map((product) => getCategoryDisplayParts(product.category).sub)
       .filter((subCategory) => subCategory && subCategory !== 'General' && subCategory !== activeCategory)
   )];
 
@@ -294,7 +358,7 @@ function renderSubcategoryTabs() {
 
 function renderCatalog() {
   const filteredProducts = products.filter((product) => {
-    const categoryParts = getCategoryParts(product.category);
+    const categoryParts = getCategoryDisplayParts(product.category);
     const matchesCategory = activeCategory === 'Todos' || categoryParts.main === activeCategory;
     const matchesSubCategory = activeCategory === 'Todos' || activeSubCategory === 'Todos' || categoryParts.sub === activeSubCategory;
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -355,7 +419,7 @@ function addToCart(productName) {
   const existing = cart.find((item) => item.name === productName);
   const currentQty = existing ? existing.quantity : 0;
 
-  if (product.stock && currentQty + 1 > product.stock) {
+  if (product.trackStock && currentQty + 1 > product.stock) {
     alert(`Solo quedan ${product.stock} de "${product.name}" en stock.`);
     return;
   }
@@ -363,7 +427,13 @@ function addToCart(productName) {
   if (existing) {
     existing.quantity += 1;
   } else {
-    cart.push({ name: product.name, price: product.price, quantity: 1, unit: product.unit });
+    cart.push({
+      name: product.name,
+      price: product.price,
+      quantity: 1,
+      unit: product.unit,
+      category: product.category,
+    });
   }
 
   saveCart();
@@ -376,7 +446,7 @@ function updateQuantity(productName, delta) {
 
   if (delta > 0) {
     const product = products.find((p) => p.name === productName);
-    if (product && product.stock && item.quantity + delta > product.stock) {
+    if (product && product.trackStock && item.quantity + delta > product.stock) {
       alert(`Solo quedan ${product.stock} de "${productName}" en stock.`);
       return;
     }
@@ -391,6 +461,24 @@ function updateQuantity(productName, delta) {
   renderCart();
 }
 
+// Arma las líneas del carrito ya con el descuento cruzado (si corresponde)
+// aplicado, y el total final.
+function buildCartSummary() {
+  const cruzadaDiscounts = computeCruzadaDiscounts(cart, promos);
+
+  const lines = cart.map((item) => {
+    const discountPercent = cruzadaDiscounts.get(item.name) || 0;
+    const baseTotal = item.price * item.quantity;
+    const lineTotal = discountPercent > 0
+      ? Math.max(0, Math.round(baseTotal * (1 - discountPercent / 100)))
+      : baseTotal;
+    return { ...item, discountPercent, baseTotal, lineTotal };
+  });
+
+  const total = lines.reduce((sum, line) => sum + line.lineTotal, 0);
+  return { lines, total };
+}
+
 function renderCart() {
   updateCartCount();
   if (!cart.length) {
@@ -399,7 +487,9 @@ function renderCart() {
     return;
   }
 
-  cartItems.innerHTML = cart
+  const { lines, total } = buildCartSummary();
+
+  cartItems.innerHTML = lines
     .map(
       (item) => `
         <div class="cart-item">
@@ -407,6 +497,7 @@ function renderCart() {
             <div>
               <p class="cart-item-name">${item.name}</p>
               <p class="cart-item-price">${formatPrice(item.price)} · ${item.unit === 'kg' ? 'por kg' : 'por unidad'}</p>
+              ${item.discountPercent > 0 ? `<p class="product-promo-badge">Promo: ${item.discountPercent}% OFF</p>` : ''}
             </div>
             <button class="remove-btn" data-remove-product="${item.name}" type="button">Quitar</button>
           </div>
@@ -416,14 +507,14 @@ function renderCart() {
               <span>${item.quantity}</span>
               <button class="qty-btn" data-qty-change="${item.name}" data-delta="1" type="button">+</button>
             </div>
-            <strong>${formatPrice(item.price * item.quantity)}</strong>
+            <strong>${formatPrice(item.lineTotal)}</strong>
           </div>
         </div>
       `
     )
     .join('');
 
-  cartTotal.textContent = formatPrice(cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
+  cartTotal.textContent = formatPrice(total);
 
   cartItems.querySelectorAll('[data-remove-product]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -458,10 +549,16 @@ function sendWhatsApp() {
     return;
   }
 
+  const { lines, total } = buildCartSummary();
+
   const message = [
     'Hola! Quiero hacer este pedido:',
-    ...cart.map((item) => `- ${item.quantity}x ${item.name} - ${formatPrice(item.price)} ${item.unit === 'kg' ? '/ kg' : '/ unidad'}`),
-    `TOTAL: ${formatPrice(cart.reduce((sum, item) => sum + item.price * item.quantity, 0))}`
+    ...lines.map((item) => {
+      const unitLabel = item.unit === 'kg' ? '/ kg' : '/ unidad';
+      const promoSuffix = item.discountPercent > 0 ? ` (promo ${item.discountPercent}% off)` : '';
+      return `- ${item.quantity}x ${item.name} - ${formatPrice(item.price)} ${unitLabel}${promoSuffix} = ${formatPrice(item.lineTotal)}`;
+    }),
+    `TOTAL: ${formatPrice(total)}`,
   ].join('\n');
 
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;

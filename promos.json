@@ -1,0 +1,70 @@
+[
+  {
+    "tipo": "cruzada",
+    "trigger": {
+      "producto": "MILANESA POLLO",
+      "cantidadMinima": 1,
+      "unidad": "kg"
+    },
+    "beneficio": {
+      "tipo": "otroProducto",
+      "producto": "NATURA MOSTAZA 250G"
+    },
+    "descuentoPercent": 10,
+    "id": "promo_1783379183093",
+    "activa": true
+  },
+  {
+    "tipo": "cruzada",
+    "trigger": {
+      "producto": "MILANESA POLLO",
+      "cantidadMinima": 1,
+      "unidad": "kg"
+    },
+    "beneficio": {
+      "tipo": "otroProducto",
+      "producto": "PURE DE PAPA KNORR 125G"
+    },
+    "descuentoPercent": 10,
+    "id": "promo_1783380469052",
+    "activa": true
+  },
+  {
+    "tipo": "categoria",
+    "categoria": "HELADOS",
+    "subcategoria": "3 LT",
+    "descuentoPercent": 25,
+    "id": "promo_1783380532365",
+    "activa": true
+  },
+  {
+    "tipo": "cruzada",
+    "trigger": {
+      "producto": "ALITAS CRISPY PRECIDAS",
+      "cantidadMinima": 1,
+      "unidad": "kg"
+    },
+    "beneficio": {
+      "tipo": "otroProducto",
+      "producto": "BARBACOA HELLMANS 250G"
+    },
+    "descuentoPercent": 10,
+    "id": "promo_1783380929098",
+    "activa": true
+  },
+  {
+    "tipo": "cruzada",
+    "trigger": {
+      "producto": "ALITAS CRISPY PRECIDAS",
+      "cantidadMinima": 0.8,
+      "unidad": "kg"
+    },
+    "beneficio": {
+      "tipo": "otroProducto",
+      "producto": "KETCHUP HELLMANS 250G"
+    },
+    "descuentoPercent": 10,
+    "id": "promo_1783380950714",
+    "activa": true
+  }
+]

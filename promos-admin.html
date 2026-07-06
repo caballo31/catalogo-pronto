@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestor de Promos · PRONTO!</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="promos-admin.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <p class="eyebrow">Panel interno · no público</p>
+      <h1>Gestor de Promos — PRONTO!</h1>
+      <p class="hero-copy">
+        Acá cargás las promociones que después va a leer el catálogo online.
+        Los productos y precios se siguen actualizando por el export diario de Odoo;
+        esto es aparte porque cambia mucho menos seguido.
+      </p>
+    </header>
+
+    <main class="container">
+
+      <section class="panel" id="dataStatus">
+        <p id="dataStatusText">Cargando productos de referencia...</p>
+      </section>
+
+      <section class="panel form-panel">
+        <h2>Nueva promo</h2>
+
+        <div class="tipo-tabs" role="tablist">
+          <button class="tipo-btn active" data-tipo="producto" type="button">Producto específico</button>
+          <button class="tipo-btn" data-tipo="categoria" type="button">Categoría</button>
+          <button class="tipo-btn" data-tipo="cruzada" type="button">Cruzada / combo</button>
+        </div>
+
+        <form id="promoForm">
+
+          <!-- TIPO: PRODUCTO -->
+          <div class="tipo-fields" data-tipo-fields="producto">
+            <label class="field-label">Producto(s) con descuento</label>
+            <input type="search" class="product-search" data-search-for="producto" placeholder="Buscar producto..." autocomplete="off" />
+            <div class="product-picker" data-picker="producto"></div>
+
+            <label class="field-label">% de descuento</label>
+            <input type="number" min="1" max="90" step="1" id="descuentoProducto" placeholder="Ej: 10" />
+          </div>
+
+          <!-- TIPO: CATEGORIA -->
+          <div class="tipo-fields" data-tipo-fields="categoria" hidden>
+            <label class="field-label">Categoría</label>
+            <select id="categoriaSelect"></select>
+
+            <label class="field-label">Subcategoría (opcional, si dejás "Todas" aplica a toda la categoría)</label>
+            <select id="subcategoriaSelect"></select>
+
+            <label class="field-label">% de descuento</label>
+            <input type="number" min="1" max="90" step="1" id="descuentoCategoria" placeholder="Ej: 15" />
+          </div>
+
+          <!-- TIPO: CRUZADA -->
+          <div class="tipo-fields" data-tipo-fields="cruzada" hidden>
+            <p class="section-note">Disparador: qué tiene que llevar el cliente</p>
+            <label class="field-label">Producto disparador</label>
+            <input type="search" class="product-search" data-search-for="trigger" placeholder="Buscar producto..." autocomplete="off" />
+            <div class="product-picker single" data-picker="trigger"></div>
+
+            <label class="field-label">Cantidad mínima <span id="triggerUnitLabel" class="unit-hint"></span></label>
+            <input type="number" min="0.1" step="0.1" id="cantidadMinima" placeholder="Ej: 1" />
+
+            <p class="section-note">Beneficio: qué se descuenta</p>
+            <label class="field-label">Se aplica a</label>
+            <select id="beneficioTipo">
+              <option value="mismoProducto">El mismo producto</option>
+              <option value="otroProducto">Otro producto puntual</option>
+              <option value="categoria">Una categoría</option>
+            </select>
+
+            <div id="beneficioOtroProducto" hidden>
+              <label class="field-label">Producto beneficiado</label>
+              <input type="search" class="product-search" data-search-for="beneficio" placeholder="Buscar producto..." autocomplete="off" />
+              <div class="product-picker single" data-picker="beneficio"></div>
+            </div>
+
+            <div id="beneficioCategoria" hidden>
+              <label class="field-label">Categoría beneficiada</label>
+              <select id="beneficioCategoriaSelect"></select>
+            </div>
+
+            <label class="field-label">% de descuento del beneficio</label>
+            <input type="number" min="1" max="90" step="1" id="descuentoCruzada" placeholder="Ej: 10" />
+          </div>
+
+          <button type="submit" class="btn-primary">Agregar promo</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="list-header">
+          <h2>Promos cargadas (<span id="promoCount">0</span>)</h2>
+          <div class="list-actions">
+            <button id="exportBtn" class="btn-secondary" type="button">Exportar promos.json</button>
+            <label class="btn-secondary file-btn">
+              Importar promos.json
+              <input type="file" id="importInput" accept="application/json" hidden />
+            </label>
+          </div>
+        </div>
+        <div id="promoList" class="promo-list"></div>
+      </section>
+
+    </main>
+
+    <script src="promos-admin.js"></script>
+  </body>
+</html>
