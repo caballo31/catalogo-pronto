@@ -10,25 +10,19 @@ const BRAND = {
 };
 
 // El catálogo se arma leyendo DIRECTO el CSV que exportás de Odoo
-// (Inventario > Productos > exportar), sin pasar por ningún script
-// intermedio. El único paso manual es: exportar de Odoo y reemplazar
-// este archivo en el repo con ese mismo nombre.
 const CATALOG_CSV_PATH = 'productos.csv';
 
-// Las promos (descuentos por producto, categoría o combos "llevando X, Y% off")
-// se cargan aparte, desde promos.json. Ese archivo lo genera el gestor de
-// promos (promos-admin.html) — no se toca a mano.
+// Las promos se cargan desde promos.json
 const PROMOS_JSON_PATH = 'promos.json';
 
-// Categorías de Odoo que nunca deben aparecer en el catálogo web.
-// "all"/"todos" cubre productos que quedaron sin categoría asignada.
+// Categorías de Odoo que nunca deben aparecer en el catálogo web
 const EXCLUDED_CATEGORIES = ['insumos de produccion', 'descartables', 'all', 'todos'];
 
-// Umbral para avisar que queda poco stock (unidades o kg, según el producto).
+// Umbral para avisar que queda poco stock
 const LOW_STOCK_THRESHOLD = 2;
 
 // ---------------------------------------------------------------------------
-// Parsing genérico de CSV (soporta comillas, comas dentro de campos, \r\n)
+// Parsing genérico de CSV
 // ---------------------------------------------------------------------------
 
 function parseCsv(text) {
@@ -56,7 +50,7 @@ function parseCsv(text) {
       row.push(field);
       field = '';
     } else if (char === '\r') {
-      // ignorar, lo maneja el \n siguiente
+      // ignorar
     } else if (char === '\n') {
       row.push(field);
       rows.push(row);
@@ -103,7 +97,7 @@ function getCategoryParts(category = '') {
 }
 
 // ---------------------------------------------------------------------------
-// Mapeo del export crudo de Odoo (Producto/product.template) a producto web
+// Mapeo del export crudo de Odoo
 // ---------------------------------------------------------------------------
 
 function mapOdooRowToProduct(row) {
@@ -134,13 +128,12 @@ function mapOdooRowToProduct(row) {
 function shouldIncludeProduct(product) {
   if (!product.name) return false;
   const mainCategory = normalizeText(getCategoryParts(product.category).main);
-  if (!mainCategory) return false; // sin categoría asignada en Odoo
+  if (!mainCategory) return false;
   return !EXCLUDED_CATEGORIES.includes(mainCategory);
 }
 
 // ---------------------------------------------------------------------------
-// Promos (promos.json): descuentos estáticos (producto/categoría) que se
-// muestran en el catálogo, y combos cruzados que se calculan en el carrito.
+// Promos (promos.json)
 // ---------------------------------------------------------------------------
 
 function computeStaticDiscountForProduct(product, promoList) {
@@ -181,8 +174,6 @@ function applyStaticPromos(productList, promoList) {
   });
 }
 
-// Para promos "cruzadas": qué % de descuento le toca a cada ítem del
-// carrito, según si se cumplió la condición de cantidad mínima.
 function computeCruzadaDiscounts(cartList, promoList) {
   const discountMap = new Map();
   const setMax = (name, value) => discountMap.set(name, Math.max(discountMap.get(name) || 0, value));
@@ -196,8 +187,11 @@ function computeCruzadaDiscounts(cartList, promoList) {
       if (promo.beneficio.tipo === 'mismoProducto') {
         setMax(triggerItem.name, promo.descuentoPercent);
       } else if (promo.beneficio.tipo === 'otroProducto') {
-        const targetItem = cartList.find((item) => item.name === promo.beneficio.producto);
-        if (targetItem) setMax(targetItem.name, promo.descuentoPercent);
+        const targets = promo.beneficio.productos || [promo.beneficio.producto];
+        targets.forEach((targetName) => {
+          const targetItem = cartList.find((item) => item.name === targetName);
+          if (targetItem) setMax(targetItem.name, promo.descuentoPercent);
+        });
       } else if (promo.beneficio.tipo === 'categoria') {
         cartList.forEach((item) => {
           const parts = getCategoryParts(item.category);
@@ -213,6 +207,7 @@ function computeCruzadaDiscounts(cartList, promoList) {
 
 let products = [];
 let promos = [];
+let bannerTimer = null; // Timer global para el auto-slide
 
 const CART_STORAGE_KEY = 'almacen-rotiseria-cart';
 let activeCategory = 'Todos';
@@ -272,8 +267,6 @@ async function loadProducts() {
 
   let sourceProducts = [];
   try {
-    // cache: 'no-store' para que siempre traiga la última versión del CSV
-    // y no una copia vieja guardada por el navegador.
     const response = await fetch(`${CATALOG_CSV_PATH}?v=${Date.now()}`, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`No se pudo cargar ${CATALOG_CSV_PATH} (status ${response.status})`);
@@ -291,9 +284,101 @@ async function loadProducts() {
   promos = (await fetchJsonSafe(PROMOS_JSON_PATH)) || [];
   products = applyStaticPromos(sourceProducts, promos);
 
+  renderBanners();
   renderCategoryTabs();
   renderCatalog();
   renderCart();
+}
+
+// RENDER Y LOGICA AUTO-SLIDE DEL CARRUSEL
+function renderBanners() {
+  const bannerContainer = document.getElementById('promoBannerContainer');
+  const bannerTrack = document.getElementById('promoBannerTrack');
+  if (!bannerContainer || !bannerTrack) return;
+
+  const promosWithImages = promos.filter(p => p.activa && p.imagen);
+  if (promosWithImages.length === 0) {
+    bannerContainer.hidden = true;
+    clearInterval(bannerTimer);
+    return;
+  }
+
+  bannerTrack.innerHTML = promosWithImages.map(promo => `
+    <div class="banner-slide">
+      <img src="${promo.imagen}" alt="Promoción" />
+    </div>
+  `).join('');
+
+  bannerContainer.hidden = false;
+
+  const prevBtn = document.getElementById('prevBanner');
+  const nextBtn = document.getElementById('nextBanner');
+  
+  if (prevBtn && nextBtn) {
+    if (promosWithImages.length <= 1) {
+      prevBtn.style.display = 'none';
+      nextBtn.style.display = 'none';
+      clearInterval(bannerTimer);
+    } else {
+      prevBtn.style.display = 'flex';
+      nextBtn.style.display = 'flex';
+      resetBannerTimer(promosWithImages.length);
+    }
+  }
+}
+
+function resetBannerTimer(count) {
+  clearInterval(bannerTimer);
+  if (count <= 1) return;
+  bannerTimer = setInterval(() => {
+    navigateBanner(1, count);
+  }, 6000); // Cambio automático cada 6 segundos
+}
+
+function navigateBanner(direction, count) {
+  const bannerTrack = document.getElementById('promoBannerTrack');
+  if (!bannerTrack || count <= 1) return;
+
+  const slideWidth = bannerTrack.clientWidth;
+  let currentIndex = Math.round(bannerTrack.scrollLeft / slideWidth);
+  currentIndex += direction;
+
+  if (currentIndex >= count) {
+    currentIndex = 0;
+  } else if (currentIndex < 0) {
+    currentIndex = count - 1;
+  }
+
+  bannerTrack.scrollTo({
+    left: currentIndex * slideWidth,
+    behavior: 'smooth'
+  });
+}
+
+// Eventos de botones del carrusel
+const prevBannerBtn = document.getElementById('prevBanner');
+const nextBannerBtn = document.getElementById('nextBanner');
+const closeBannersBtn = document.getElementById('closeBanners');
+
+if (prevBannerBtn) {
+  prevBannerBtn.addEventListener('click', () => {
+    const count = promos.filter(p => p.activa && p.imagen).length;
+    navigateBanner(-1, count);
+    resetBannerTimer(count);
+  });
+}
+if (nextBannerBtn) {
+  nextBannerBtn.addEventListener('click', () => {
+    const count = promos.filter(p => p.activa && p.imagen).length;
+    navigateBanner(1, count);
+    resetBannerTimer(count);
+  });
+}
+if (closeBannersBtn) {
+  closeBannersBtn.addEventListener('click', () => {
+    document.getElementById('promoBannerContainer').hidden = true;
+    clearInterval(bannerTimer);
+  });
 }
 
 function saveCart() {
@@ -461,8 +546,6 @@ function updateQuantity(productName, delta) {
   renderCart();
 }
 
-// Arma las líneas del carrito ya con el descuento cruzado (si corresponde)
-// aplicado, y el total final.
 function buildCartSummary() {
   const cruzadaDiscounts = computeCruzadaDiscounts(cart, promos);
 

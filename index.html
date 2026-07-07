@@ -36,6 +36,15 @@
     </header>
 
     <main class="container">
+      
+      <!-- CARRUSEL DE BANNERS DE PROMOS (CON FLECHAS) -->
+      <section id="promoBannerContainer" class="promo-banner-container" hidden>
+        <button id="closeBanners" class="close-banners-btn" type="button" aria-label="Cerrar promociones">✕</button>
+        <button id="prevBanner" class="banner-nav-btn prev" type="button" aria-label="Anterior">❮</button>
+        <div id="promoBannerTrack" class="promo-banner-track"></div>
+        <button id="nextBanner" class="banner-nav-btn next" type="button" aria-label="Siguiente">❯</button>
+      </section>
+
       <section class="controls" aria-label="Buscador y filtros">
         <input
           id="searchInput"
@@ -80,6 +89,6 @@
       </div>
     </aside>
 
-    <script src="script.js?v=2026070601"></script>
+    <script src="script.js?v=2026070602"></script>
   </body>
 </html>

@@ -1,35 +1,5 @@
 [
   {
-    "tipo": "cruzada",
-    "trigger": {
-      "producto": "MILANESA POLLO",
-      "cantidadMinima": 1,
-      "unidad": "kg"
-    },
-    "beneficio": {
-      "tipo": "otroProducto",
-      "producto": "NATURA MOSTAZA 250G"
-    },
-    "descuentoPercent": 10,
-    "id": "promo_1783379183093",
-    "activa": true
-  },
-  {
-    "tipo": "cruzada",
-    "trigger": {
-      "producto": "MILANESA POLLO",
-      "cantidadMinima": 1,
-      "unidad": "kg"
-    },
-    "beneficio": {
-      "tipo": "otroProducto",
-      "producto": "PURE DE PAPA KNORR 125G"
-    },
-    "descuentoPercent": 10,
-    "id": "promo_1783380469052",
-    "activa": true
-  },
-  {
     "tipo": "categoria",
     "categoria": "HELADOS",
     "subcategoria": "3 LT",
@@ -40,31 +10,77 @@
   {
     "tipo": "cruzada",
     "trigger": {
-      "producto": "ALITAS CRISPY PRECIDAS",
+      "producto": "MILANESA POLLO",
       "cantidadMinima": 1,
       "unidad": "kg"
     },
     "beneficio": {
       "tipo": "otroProducto",
-      "producto": "BARBACOA HELLMANS 250G"
+      "productos": [
+        "NATURA MOSTAZA 250G",
+        "PURE DE PAPA KNORR 125G"
+      ]
     },
     "descuentoPercent": 10,
-    "id": "promo_1783380929098",
+    "imagen": "https://i.postimg.cc/Hx5VrXhY/combo1.png",
+    "id": "promo_1783427797699",
     "activa": true
   },
   {
     "tipo": "cruzada",
     "trigger": {
       "producto": "ALITAS CRISPY PRECIDAS",
-      "cantidadMinima": 0.8,
+      "cantidadMinima": 0.2,
       "unidad": "kg"
     },
     "beneficio": {
       "tipo": "otroProducto",
-      "producto": "KETCHUP HELLMANS 250G"
+      "productos": [
+        "KETCHUP HELLMANS 250G",
+        "BARBACOA HELLMANS 250G"
+      ]
     },
     "descuentoPercent": 10,
-    "id": "promo_1783380950714",
+    "imagen": "https://i.postimg.cc/J4dMWtTm/combo4.png",
+    "id": "promo_1783428112997",
+    "activa": true
+  },
+  {
+    "tipo": "cruzada",
+    "trigger": {
+      "producto": "BONDIOLA DE CERDO",
+      "cantidadMinima": 1,
+      "unidad": "kg"
+    },
+    "beneficio": {
+      "tipo": "otroProducto",
+      "productos": [
+        "BOLSA HORNO MOSTAZA Y MIEL ALICANTE"
+      ]
+    },
+    "descuentoPercent": 10,
+    "imagen": "https://i.postimg.cc/1XvPXzs0/combo2.png",
+    "id": "promo_1783428587396",
+    "activa": true
+  },
+  {
+    "tipo": "cruzada",
+    "trigger": {
+      "producto": "REBOSAURIOS",
+      "cantidadMinima": 0.4,
+      "unidad": "kg"
+    },
+    "beneficio": {
+      "tipo": "otroProducto",
+      "productos": [
+        "PAPAS FRITAS 500G",
+        "PAPAS FRITAS 400G",
+        "PAPAS FRITAS 1 KG"
+      ]
+    },
+    "descuentoPercent": 10,
+    "imagen": "https://i.postimg.cc/7Lz22F5d/combo3.png",
+    "id": "promo_1783428672935",
     "activa": true
   }
 ]

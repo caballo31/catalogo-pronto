@@ -22,7 +22,7 @@ let currentTipo = 'producto';
 const selection = {
   producto: new Set(),   // multi, para tipo "producto"
   trigger: null,         // single, nombre de producto (tipo "cruzada")
-  beneficio: null,       // single, nombre de producto (tipo "cruzada" -> otroProducto)
+  beneficio: new Set(),  // multi, para tipo "cruzada" -> otroProducto
 };
 
 const dataStatus = document.getElementById('dataStatus');
@@ -242,11 +242,12 @@ function renderPickers(key, searchTerm) {
     return;
   }
 
-  const isMulti = key === 'producto';
+  // Ahora ambos producto general y beneficio cruzado son de tipo "multi"
+  const isMulti = key === 'producto' || key === 'beneficio';
 
   container.innerHTML = matches
     .map((p) => {
-      const isSelected = isMulti ? selection.producto.has(p.name) : selection[key] === p.name;
+      const isSelected = isMulti ? selection[key].has(p.name) : selection[key] === p.name;
       return `
         <div class="product-picker-item ${isSelected ? 'selected' : ''}" data-product="${encodeURIComponent(p.name)}">
           <span>${p.name}</span>
@@ -260,7 +261,7 @@ function renderPickers(key, searchTerm) {
     item.addEventListener('click', () => {
       const name = decodeURIComponent(item.dataset.product);
       if (isMulti) {
-        selection.producto.has(name) ? selection.producto.delete(name) : selection.producto.add(name);
+        selection[key].has(name) ? selection[key].delete(name) : selection[key].add(name);
       } else {
         selection[key] = selection[key] === name ? null : name;
         if (key === 'trigger') updateTriggerUnitLabel();
@@ -304,12 +305,14 @@ function handleSubmit(event) {
 }
 
 function buildPromoFromForm() {
+  const imagenUrl = document.getElementById('promoImagen').value.trim();
+
   if (currentTipo === 'producto') {
     const productos = [...selection.producto];
     const descuento = Number(document.getElementById('descuentoProducto').value);
     if (!productos.length) throw new Error('Elegí al menos un producto.');
     if (!descuento || descuento <= 0) throw new Error('Cargá un % de descuento válido.');
-    return { tipo: 'producto', productos, descuentoPercent: descuento };
+    return { tipo: 'producto', productos, descuentoPercent: descuento, ...(imagenUrl && { imagen: imagenUrl }) };
   }
 
   if (currentTipo === 'categoria') {
@@ -318,7 +321,7 @@ function buildPromoFromForm() {
     const descuento = Number(document.getElementById('descuentoCategoria').value);
     if (!categoria) throw new Error('Elegí una categoría.');
     if (!descuento || descuento <= 0) throw new Error('Cargá un % de descuento válido.');
-    return { tipo: 'categoria', categoria, subcategoria: subcategoria || '', descuentoPercent: descuento };
+    return { tipo: 'categoria', categoria, subcategoria: subcategoria || '', descuentoPercent: descuento, ...(imagenUrl && { imagen: imagenUrl }) };
   }
 
   // cruzada
@@ -336,22 +339,23 @@ function buildPromoFromForm() {
 
   const beneficio = { tipo: beneficioTipo };
   if (beneficioTipo === 'otroProducto') {
-    if (!selection.beneficio) throw new Error('Elegí el producto beneficiado.');
-    beneficio.producto = selection.beneficio;
+    if (selection.beneficio.size === 0) throw new Error('Elegí al menos un producto beneficiado.');
+    beneficio.productos = [...selection.beneficio]; // Ahora es un array
   } else if (beneficioTipo === 'categoria') {
     const cat = document.getElementById('beneficioCategoriaSelect').value;
     if (!cat) throw new Error('Elegí la categoría beneficiada.');
     beneficio.categoria = cat;
   }
 
-  return { tipo: 'cruzada', trigger, beneficio, descuentoPercent: descuento };
+  return { tipo: 'cruzada', trigger, beneficio, descuentoPercent: descuento, ...(imagenUrl && { imagen: imagenUrl }) };
 }
 
 function resetForm() {
   document.getElementById('promoForm').reset();
   selection.producto.clear();
   selection.trigger = null;
-  selection.beneficio = null;
+  selection.beneficio.clear();
+  document.getElementById('promoImagen').value = '';
   updateTriggerUnitLabel();
   document.getElementById('beneficioOtroProducto').hidden = true;
   document.getElementById('beneficioCategoria').hidden = true;
@@ -375,14 +379,17 @@ function summarize(promo) {
   // cruzada
   const unidadLabel = promo.trigger.unidad === 'kg' ? 'kg' : 'unidad(es)';
   const triggerLabel = `Llevando ${promo.trigger.cantidadMinima}${promo.trigger.unidad === 'kg' ? 'kg' : ' ' + unidadLabel} de "${promo.trigger.producto}"`;
+  
   let beneficioLabel;
   if (promo.beneficio.tipo === 'mismoProducto') {
     beneficioLabel = `${promo.descuentoPercent}% OFF en ese mismo producto`;
   } else if (promo.beneficio.tipo === 'otroProducto') {
-    beneficioLabel = `${promo.descuentoPercent}% OFF en "${promo.beneficio.producto}"`;
+    const prods = promo.beneficio.productos ? promo.beneficio.productos.join(', ') : promo.beneficio.producto;
+    beneficioLabel = `${promo.descuentoPercent}% OFF en "${prods}"`;
   } else {
     beneficioLabel = `${promo.descuentoPercent}% OFF en la categoría "${promo.beneficio.categoria}"`;
   }
+  
   return `${triggerLabel} → ${beneficioLabel}`;
 }
 
@@ -402,6 +409,7 @@ function renderPromoList() {
           <div class="promo-card-main">
             <span class="promo-type-badge ${promo.tipo}">${labelForTipo(promo.tipo)}</span>
             <p class="promo-summary">${summarize(promo)}</p>
+            ${promo.imagen ? `<span style="display:block; margin-top:0.4rem; font-size:0.75rem; color:var(--brand-muted)">🖼️ Tiene banner</span>` : ''}
           </div>
           <div class="promo-card-actions">
             <button class="toggle-btn" data-action="toggle" data-id="${promo.id}" type="button">

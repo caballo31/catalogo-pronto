@@ -74,10 +74,10 @@ p {
 }
 
 .controls {
-  background: #f6f7f8; /* contenedor gris discreto */
+  background: #f6f7f8;
   border: none;
   border-radius: 20px;
-  padding: 1.4rem 0.9rem 1rem; /* más padding superior */
+  padding: 1.4rem 0.9rem 1rem;
   box-shadow: 0 4px 12px rgba(17,11,8,0.04);
   margin-top: -0.6rem;
   position: relative;
@@ -86,7 +86,7 @@ p {
 
 #searchInput {
   width: 100%;
-  border: 1px solid #e2e2e2; /* borde más discreto */
+  border: 1px solid #e2e2e2;
   border-radius: 999px;
   padding: 0.8rem 1rem;
   margin-bottom: 0.75rem;
@@ -95,7 +95,7 @@ p {
 }
 
 #searchInput:focus {
-  border-color: #cfcfcf; /* enfoque discreto en gris */
+  border-color: #cfcfcf;
   box-shadow: none;
 }
 
@@ -152,10 +152,10 @@ p {
 
 .product-card {
   background: #ffffff;
-  border: 1px solid #ececec; /* borde más sutil */
+  border: 1px solid #ececec;
   border-radius: 14px;
   padding: 0.9rem;
-  box-shadow: 0 6px 18px rgba(17,11,8,0.03); /* sombra muy suave */
+  box-shadow: 0 6px 18px rgba(17,11,8,0.03);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -274,7 +274,7 @@ p {
 
 .add-btn {
   width: 100%;
-  background: #28a745; /* verde */
+  background: #28a745;
   color: white;
   padding: 0.7rem 0.9rem;
   border-radius: 999px;
@@ -346,6 +346,7 @@ body.cart-open .cart-panel {
   align-items: center;
   padding: 1rem;
   border-bottom: 1px solid var(--brand-border);
+  background: white;
 }
 
 .close-btn {
@@ -414,9 +415,16 @@ body.cart-open .cart-panel {
   padding: 0;
 }
 
+/* BOTÓN DE WHATSAPP FLOTANTE Y FIJO ABAJO */
 .cart-footer {
   padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--brand-border);
+  background: #ffffff;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -4px 12px rgba(17,11,8,0.05);
 }
 
 .cart-total-row {
@@ -440,6 +448,98 @@ body.cart-open .cart-panel {
   color: var(--brand-muted);
   text-align: center;
   padding: 1.2rem 0;
+}
+
+/* Banners de Promo */
+.promo-banner-container {
+  position: relative;
+  margin-bottom: 1.5rem;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(17,11,8,0.04);
+}
+
+.close-banners-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 12;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.close-banners-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* FLECHAS DE NAVEGACIÓN DEL CARRUSEL */
+.banner-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 11;
+  font-size: 1.1rem;
+  transition: background 0.2s, opacity 0.2s;
+  user-select: none;
+}
+
+.banner-nav-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.banner-nav-btn.prev {
+  left: 0.6rem;
+}
+
+.banner-nav-btn.next {
+  right: 0.6rem;
+}
+
+.promo-banner-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.promo-banner-track::-webkit-scrollbar {
+  display: none;
+}
+
+.banner-slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  min-width: 100%;
+}
+
+.banner-slide img {
+  width: 100%;
+  height: auto;
+  max-height: 250px;
+  object-fit: cover;
+  display: block;
 }
 
 @media (min-width: 700px) {

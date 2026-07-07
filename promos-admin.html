@@ -74,14 +74,15 @@
             <label class="field-label">Se aplica a</label>
             <select id="beneficioTipo">
               <option value="mismoProducto">El mismo producto</option>
-              <option value="otroProducto">Otro producto puntual</option>
+              <option value="otroProducto">Otro producto puntual (pueden ser varios)</option>
               <option value="categoria">Una categoría</option>
             </select>
 
             <div id="beneficioOtroProducto" hidden>
-              <label class="field-label">Producto beneficiado</label>
+              <label class="field-label">Producto(s) beneficiado(s)</label>
               <input type="search" class="product-search" data-search-for="beneficio" placeholder="Buscar producto..." autocomplete="off" />
-              <div class="product-picker single" data-picker="beneficio"></div>
+              <!-- Sin clase 'single' para permitir multi-selección -->
+              <div class="product-picker" data-picker="beneficio"></div>
             </div>
 
             <div id="beneficioCategoria" hidden>
@@ -91,6 +92,12 @@
 
             <label class="field-label">% de descuento del beneficio</label>
             <input type="number" min="1" max="90" step="1" id="descuentoCruzada" placeholder="Ej: 10" />
+          </div>
+
+          <div class="general-fields" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--brand-border);">
+            <label class="field-label">Imagen para Banner (opcional)</label>
+            <input type="url" id="promoImagen" placeholder="https://ejemplo.com/imagen.jpg" autocomplete="off" />
+            <p class="unit-hint" style="margin-top: 0.3rem; font-size: 0.8rem;">Pegá el link de una imagen. Si lo dejás vacío, la promo se aplica igual pero no aparece en el carrusel.</p>
           </div>
 
           <button type="submit" class="btn-primary">Agregar promo</button>
